@@ -3,6 +3,7 @@
 #####################################################################
 
 import customtkinter
+import threading
 from extension import *
 
 #####################################################################
@@ -56,6 +57,13 @@ title = customtkinter.CTkLabel(master=menuFrame, text="\n\n\nLinXtrac", font=("H
 title.pack()
 subTitle = customtkinter.CTkLabel(master=menuFrame, text="\nLinux Extraction System", font=("Helvetica", 20))
 subTitle.pack()
+
+###
+
+UADStatus = customtkinter.CTkLabel(master=menuFrame, text="Not Extracted")
+UADStatus.pack()
+UADButton = customtkinter.CTkButton(master=menuFrame,text="User Account Details",command=lambda: threading.Thread(target=getUserAccountInfo, args=(UADStatus, menuFrame)).start())
+UADButton.pack(padx=10, pady=10)
 
 ###
 

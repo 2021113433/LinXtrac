@@ -4,6 +4,7 @@
 
 import os
 import tempfile
+import customtkinter
 from customtkinter import filedialog
 from tkinter import messagebox
 from datetime import datetime
@@ -44,10 +45,32 @@ def getDirectory():
     return
 
 #####################################################################
+# File Crawler 
+#####################################################################
+
+def fileCrawler(root_directory, directories_to_search, file_to_search):
+    for directory in directories_to_search:
+        filePath = os.path.join(root_directory, directory, file_to_search)
+        if os.path.exists(filePath):
+            yield filePath
+    return
+
+def fileCrawlerAdvanced(root_directory, directories_to_search, file_to_search):
+    for directory in directories_to_search:
+        for relPath, dirs, files in os.walk(root_directory):
+            if directory in dirs:
+                root_directory = os.path.join(root_directory, relPath, directory)
+                break
+        for relPath, dirs, files in os.walk(root_directory):
+            if file_to_search in files:
+                return os.path.join(root_directory, relPath, file_to_search)
+    return False
+
+#####################################################################
 # Report
 #####################################################################
 
-def generateReport(osi, host, time):
+def generateReport(osi, host, timez):
 
     reportPath = os.path.join(mainFolder, "LinXtrac Report.html")
     with open(reportPath, "w") as reportFile:
@@ -61,15 +84,16 @@ def generateReport(osi, host, time):
         reportFile.write("<body>\n")
         
         reportFile.write("<h3>OS Information</h3>\n")
-        reportFile.write("<p>OS: {}<br>Host: {}<br>Time: {}</p>\n".format(osi, host, time))
+        reportFile.write("<p>OS: {}<br>Host: {}<br>Time: {}</p>\n".format(osi, host, timez))
+
+        return
 
 def appendReport(data):
 
     reportPath = os.path.join(mainFolder, "LinXtrac Report.html")
     with open(reportPath, "a") as reportFile:
-        
-        reportFile.write("<h1>Appended Data</h1>\n")
         reportFile.write("<p>{}</p>\n".format(data))
+    return
 
 def closeReport():
 
@@ -81,98 +105,87 @@ def closeReport():
     return
 
 #####################################################################
+# Check Extraction Status
+#####################################################################
+
+def checkExtractionStatus(stat, extracted_data_dir):
+    if os.path.exists(extracted_data_dir):
+        stat.configure(text="Extracted")
+    else:
+        stat.configure(text="Not Extracted")
+
+#####################################################################
 # OS Information
 #####################################################################
 
 def getInfo():
 
-    usrDirectory = "usr"
-    libDirectory = "lib"
-    etcDirectory = "etc"
-    osToSearch = "os-release"
-    hostToSearch = "hostname"
-    timeToSearch = "localtime"
+    usrDirectories = ["usr", "lib"]
+    etcDirectories = ["etc"]
+    filesToSearch = [("os-release", usrDirectories), ("hostname", etcDirectories), ("localtime", etcDirectories)]
 
-    ### os-release
+    data = []
+    for fileToSearch, directories in filesToSearch:
+        for directory in directories:
+            filePath = fileCrawlerAdvanced(rootDirectory, [directory], fileToSearch)
+            tempFile = tempfile.NamedTemporaryFile(delete=False)
+            if filePath:
+                with open(filePath, "r") as input:
+                    for line in input:
+                        tempFile.write(line.encode())
+            else:
+                tempFile.write("File not found".encode())
+            tempFile.close()
+            with open(tempFile.name, 'r') as file:
+                data.append(file.read())
+            os.remove(tempFile.name)
+            break  
 
-    for relPath,dirs,files in os.walk(rootDirectory):
-        if(usrDirectory in dirs):
-            firstLayer = os.path.join(rootDirectory,relPath,usrDirectory)
-            break
+    generateReport(*data)
 
-    for relPath,dirs,files in os.walk(firstLayer):
-        if(libDirectory in dirs):
-            targetedLayer = os.path.join(firstLayer,relPath,libDirectory)
-            break
-    
-    for relPath,dirs,files in os.walk(targetedLayer):
-        if(osToSearch in files):
-            osPath = os.path.join(targetedLayer,relPath,osToSearch)
-            break
+    return
+
+#####################################################################
+# User Account Data
+#####################################################################
+
+def getUserAccountInfo(stat, menuFrame):
+
+    progressbar = customtkinter.CTkProgressBar(master=menuFrame, orientation="horizontal")
+    progressbar.pack(fill="x")
+
+    etcDirectory = os.path.join(rootDirectory, "etc")
+    filesToSearch = [("passwd", [etcDirectory]), ("shadow", [etcDirectory]), ("sudoers", [etcDirectory]), ("group", [etcDirectory])]
+
+    extracted_data_dir = os.path.join(mainFolder, "User Account Data")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    total_files = len(filesToSearch)
+    files_not_found = []
+    for i, (fileToSearch, directories) in enumerate(filesToSearch):
+        for filePath in fileCrawler(rootDirectory, directories, fileToSearch):
+            with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                with open(os.path.join(extracted_data_dir, fileToSearch), "w", encoding='utf-8') as output:
+                    for line in input:
+                        output.write(line)
+            break  
         else:
-            osPath = False
+            files_not_found.append(fileToSearch)
+
+    progress = (i + 1) / total_files * 100
+    progressbar.set(progress)
+
+    if not files_not_found:
+        appendReport("<h3>User Account Data</h3>")
+        appendReport("Data extraction was successful. Extracted data is located at " + extracted_data_dir)
+    elif len(files_not_found) < len(filesToSearch):
+        appendReport("<h3>User Account Data</h3>")
+        appendReport("Data extraction was partially successful. Some files were not found. Extracted data is located at " + extracted_data_dir)
+    else:
+        appendReport("<h3>User Account Data</h3>")
+        appendReport("Data extraction failed. No files were found.")
     
-    osp = tempfile.NamedTemporaryFile(delete=False)
-    if osPath:
-        with open(osPath, "r") as input:
-            for line in input:
-                osp.write(line.encode())
-    osp.close()
-    
-    ### hostname
-
-    for relPath,dirs,files in os.walk(rootDirectory):
-        if(etcDirectory in dirs):
-            targetDirectory = os.path.join(rootDirectory,relPath,etcDirectory)
-            break
-    
-    for relPath,dirs,files in os.walk(targetDirectory):
-        if(hostToSearch in files):
-            hostPath = os.path.join(targetDirectory,relPath,hostToSearch)
-            break
-        else:
-            hostPath = False
-
-    hst = tempfile.NamedTemporaryFile(delete=False)
-    if hostPath:
-        with open(hostPath, "r") as input:
-            for line in input:
-                hst.write(line.encode())
-    hst.close()
-
-    ### zoneinfo
-
-    for relPath,dirs,files in os.walk(rootDirectory):
-        if(etcDirectory in dirs):
-            timeDirectory = os.path.join(rootDirectory,relPath,etcDirectory)
-            break
-    
-    for relPath,dirs,files in os.walk(timeDirectory):
-        if(timeToSearch in files):
-            timePath = os.path.join(timeDirectory,relPath,timeToSearch)
-            break
-        else:
-            timePath = False
-
-    znf = tempfile.NamedTemporaryFile(delete=False)
-    if timePath:
-        with open(timePath, "r") as input:
-            for line in input:
-                znf.write(line.encode())
-    znf.close()
-
-    ###
-
-    with open(osp.name, 'r') as file:
-        os_data = file.read()
-    with open(hst.name, 'r') as file:
-        host_data = file.read()
-    with open(znf.name, 'r') as file:
-        time_data = file.read()
-
-    generateReport(os_data, host_data, time_data)
-    os.remove(osp.name)
-    os.remove(hst.name)
-    os.remove(znf.name)
+    checkExtractionStatus(stat, extracted_data_dir)
+    progressbar.destroy()
 
     return
