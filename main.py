@@ -78,6 +78,11 @@ browStatus.grid(row=2, column=1, padx=10)
 browButton = customtkinter.CTkButton(master=ButtonFrame,text="Web Browsing Activity",command=lambda: threading.Thread(target=getBrowserData, args=(browStatus,)).start())
 browButton.grid(row=2, column=0, padx=10, pady=10) 
 
+sysStatus = customtkinter.CTkLabel(master=ButtonFrame, text="Not Extracted")
+sysStatus.grid(row=3, column=1, padx=10)
+sysButton = customtkinter.CTkButton(master=ButtonFrame,text="System Files",command=lambda: threading.Thread(target=getSystemFiles, args=(sysStatus,)).start())
+sysButton.grid(row=3, column=0, padx=10, pady=10) 
+
 ###
 
 exitFrame = customtkinter.CTkFrame(master=menuFrame)
