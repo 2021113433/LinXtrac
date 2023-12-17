@@ -149,10 +149,7 @@ def getInfo():
 # User Account Data
 #####################################################################
 
-def getUserAccountInfo(stat, menuFrame):
-
-    progressbar = customtkinter.CTkProgressBar(master=menuFrame, orientation="horizontal")
-    progressbar.pack(fill="x")
+def getUserAccountInfo(stat):
 
     etcDirectory = os.path.join(rootDirectory, "etc")
     filesToSearch = [("passwd", [etcDirectory]), ("shadow", [etcDirectory]), ("sudoers", [etcDirectory]), ("group", [etcDirectory])]
@@ -172,9 +169,6 @@ def getUserAccountInfo(stat, menuFrame):
         else:
             files_not_found.append(fileToSearch)
 
-    progress = (i + 1) / total_files * 100
-    progressbar.set(progress)
-
     if not files_not_found:
         appendReport("<h3>User Account Data</h3>")
         appendReport("Data extraction was successful. Extracted data is located at " + extracted_data_dir)
@@ -186,6 +180,5 @@ def getUserAccountInfo(stat, menuFrame):
         appendReport("Data extraction failed. No files were found.")
     
     checkExtractionStatus(stat, extracted_data_dir)
-    progressbar.destroy()
 
     return
