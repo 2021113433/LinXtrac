@@ -4,7 +4,7 @@
 
 import os
 import tempfile
-import customtkinter
+import glob
 from customtkinter import filedialog
 from tkinter import messagebox
 from datetime import datetime
@@ -231,5 +231,51 @@ def getLogs(stat):
         for file in permission_denied_files:
             appendReport(f"<li>{file}</li>")
         appendReport("</ul>")
+
+    return
+
+#####################################################################
+# Web Browsing Activity
+#####################################################################
+
+def getBrowserData(stat):
+    
+    base_directories = ['.config/google-chrome', '.mozilla/Firefox', '.config/Opera', '.cache']
+
+    extracted_data_dir = os.path.join(mainFolder, "Web Browsing Activity")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    permission_denied_files = []  
+
+    for username in os.listdir(os.path.join(rootDirectory, 'home')):
+        for base_dir in base_directories:
+            directory = os.path.join(rootDirectory, 'home', username, base_dir)
+            if os.path.exists(directory):
+                for root, dirs, files in os.walk(directory):
+                    for file in files:
+                        filePath = os.path.join(root, file)
+                        try:
+                            with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                                with open(os.path.join(extracted_data_dir, os.path.basename(filePath)), "w", encoding='utf-8') as output:
+                                    for line in input:
+                                        output.write(line)
+                        except PermissionError:
+                            permission_denied_files.append(filePath)  
+                            continue
+                        except IsADirectoryError:
+                            continue
+
+    appendReport("<h3>Browser Data</h3>")
+    appendReport("Data extraction was successful. Extracted data is located at " + extracted_data_dir)
+    
+    if permission_denied_files:
+        appendReport("<h3>Files with Denied Permissions</h3>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+    
+    checkExtractionStatus(stat, extracted_data_dir)
 
     return

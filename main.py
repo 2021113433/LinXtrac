@@ -73,6 +73,11 @@ logStatus.grid(row=1, column=1, padx=10)
 logButton = customtkinter.CTkButton(master=ButtonFrame,text="System and Application Logs",command=lambda: threading.Thread(target=getLogs, args=(logStatus,)).start())
 logButton.grid(row=1, column=0, padx=10, pady=10) 
 
+browStatus = customtkinter.CTkLabel(master=ButtonFrame, text="Not Extracted")
+browStatus.grid(row=2, column=1, padx=10)
+browButton = customtkinter.CTkButton(master=ButtonFrame,text="Web Browsing Activity",command=lambda: threading.Thread(target=getBrowserData, args=(browStatus,)).start())
+browButton.grid(row=2, column=0, padx=10, pady=10) 
+
 ###
 
 exitFrame = customtkinter.CTkFrame(master=menuFrame)
