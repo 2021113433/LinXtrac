@@ -182,3 +182,54 @@ def getUserAccountInfo(stat):
     checkExtractionStatus(stat, extracted_data_dir)
 
     return
+
+#####################################################################
+# System and Application Logs
+#####################################################################
+
+def getLogs(stat):
+
+    logDirectory = os.path.join(rootDirectory, "var", "log")
+    filesToSearch = [(file, [logDirectory]) for file in os.listdir(logDirectory)]
+
+    extracted_data_dir = os.path.join(mainFolder, "System and Application Logs")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    total_files = len(filesToSearch)
+    files_not_found = []
+    permission_denied_files = []  # List to keep track of files with denied permissions
+    for i, (fileToSearch, directories) in enumerate(filesToSearch):
+        for filePath in fileCrawler(rootDirectory, directories, fileToSearch):
+            try:
+                with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                    with open(os.path.join(extracted_data_dir, fileToSearch), "w", encoding='utf-8') as output:
+                        for line in input:
+                            output.write(line)
+            except PermissionError:
+                permission_denied_files.append(filePath)  # Add the file path to the list
+                continue
+            break  
+        else:
+            files_not_found.append(fileToSearch)
+
+    if not files_not_found:
+        appendReport("<h3>System and Application Logs</h3>")
+        appendReport("Data extraction was successful. Extracted data is located at " + extracted_data_dir)
+    elif len(files_not_found) < len(filesToSearch):
+        appendReport("<h3>System and Application Logs</h3>")
+        appendReport("Data extraction was partially successful. Some files were not found. Extracted data is located at " + extracted_data_dir)
+    else:
+        appendReport("<h3>System and Application Logs</h3>")
+        appendReport("Data extraction failed. No files were found.")
+    
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    if permission_denied_files:
+        appendReport("<h2>Files with Denied Permissions</h2>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    return

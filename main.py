@@ -35,7 +35,7 @@ flavourText.pack()
 subFrame = customtkinter.CTkFrame(master=mainFrame)
 subFrame.pack(padx=80, pady=80)
 
-directoryText = customtkinter.CTkLabel(master=subFrame, text="No directory chosen", font=("Helvetica", 15))
+directoryText = customtkinter.CTkLabel(master=subFrame, text="No Directory Chosen", font=("Helvetica", 15))
 directoryText.pack()
 directoryButton = customtkinter.CTkButton(master=subFrame, text="Choose Directory", command=lambda: [getDirectory(),getInfo(), mainFrame.pack_forget(), menuFrame.pack(pady=20, padx=60, fill="both", expand=True)])
 directoryButton.pack(padx=10, pady=10)
@@ -67,6 +67,11 @@ UADStatus = customtkinter.CTkLabel(master=ButtonFrame, text="Not Extracted")
 UADStatus.grid(row=0, column=1, padx=10)
 UADButton = customtkinter.CTkButton(master=ButtonFrame,text="User Account Details",command=lambda: threading.Thread(target=getUserAccountInfo, args=(UADStatus,)).start())
 UADButton.grid(row=0, column=0, padx=10, pady=10) 
+
+logStatus = customtkinter.CTkLabel(master=ButtonFrame, text="Not Extracted")
+logStatus.grid(row=1, column=1, padx=10)
+logButton = customtkinter.CTkButton(master=ButtonFrame,text="System and Application Logs",command=lambda: threading.Thread(target=getLogs, args=(logStatus,)).start())
+logButton.grid(row=1, column=0, padx=10, pady=10) 
 
 ###
 
