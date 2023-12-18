@@ -83,6 +83,11 @@ sysStatus.grid(row=3, column=1, padx=10)
 sysButton = customtkinter.CTkButton(master=ButtonFrame,text="System Files",command=lambda: threading.Thread(target=getSystemFiles, args=(sysStatus,)).start())
 sysButton.grid(row=3, column=0, padx=10, pady=10) 
 
+bashStatus = customtkinter.CTkLabel(master=ButtonFrame, text="Not Extracted")
+bashStatus.grid(row=4, column=1, padx=10)
+bashButton = customtkinter.CTkButton(master=ButtonFrame,text="Bash History",command=lambda: threading.Thread(target=getBashHistory, args=(bashStatus,)).start())
+bashButton.grid(row=4, column=0, padx=10, pady=10) 
+
 ###
 
 exitFrame = customtkinter.CTkFrame(master=menuFrame)

@@ -98,7 +98,7 @@ def generateReport(osi, host, timez):
         reportFile.write("<h3>OS Information</h3>\n")
         reportFile.write("<details>\n")
         reportFile.write("<summary>Click to view details</summary>\n")
-        reportFile.write("<p>OS: {}<br>Host: {}<br>Time: {}</p>\n".format(osi, host, timez))
+        reportFile.write("<p><b>OS Version:</b><br> {}<br><b>Host:</b><br> {}<br><b>Time:</b><br> {}</p>\n".format(osi, host, timez))
         reportFile.write("</details>\n")
 
     return
@@ -369,16 +369,21 @@ def getSystemFiles(stat):
 
     permission_denied_files = []  
     not_found_files = []  
+    empty_files = []  
 
     for directory in directoriesToSearch:
         directory = os.path.join(rootDirectory, directory.lstrip('/'))  
-        if os.path.exists(directory):
+        directory_path, directory_name = os.path.split(directory)
+        if any(dir_entry.name.lower() == directory_name.lower() for dir_entry in os.scandir(directory_path)):
             for root, dirs, files in os.walk(directory):
                 for file in files:
                     filePath = os.path.join(root, file)
                     try:
                         with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
-                            with open(os.path.join(extracted_data_dir, os.path.basename(filePath)), "w", encoding='utf-8') as output:
+                            if input.read().strip() == "":
+                                empty_files.append(filePath)
+                                continue
+                            with open(os.path.join(extracted_data_dir, os.path.basename(filePath.lower())), "w", encoding='utf-8') as output:
                                 for line in input:
                                     output.write(line)
                     except PermissionError:
@@ -391,12 +396,12 @@ def getSystemFiles(stat):
             not_found_files.append(directory)
 
     appendReport("<h3>System Files</h3>")
-    if not not_found_files:
-        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
-    elif len(not_found_files) < len(directoriesToSearch):
-        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    if not not_found_files and not empty_files:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir + "</details>")
+    elif len(not_found_files) < len(directoriesToSearch) or empty_files:
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found or were empty. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir + "</details>")
     else:
-        appendReport("<details><summary>Data extraction failed. No files were found.</summary>")
+        appendReport("<details><summary>Data extraction failed. No files were found.</summary></details>")
 
     if permission_denied_files:
         appendReport("<h4>Files with Denied Permissions</h4>")
@@ -413,9 +418,81 @@ def getSystemFiles(stat):
         for file in not_found_files:
             appendReport(f"<li>{file}</li>")
         appendReport("</ul>")
+
+    if empty_files:
+        appendReport("<h4>Empty Files</h4>")
+        appendReport("<p>The following files were empty:</p>")
+        appendReport("<ul>")
+        for file in empty_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
     appendReport("</details>")
 
     checkExtractionStatus(stat, extracted_data_dir)
+
+    return
+
+#####################################################################
+# Bash History
+#####################################################################
+
+def getBashHistory(stat):
+
+    stat.configure(text="Extracting...")
+
+    bashHistoryFile = ".bash_history"
+    homeDirectory = os.path.join(rootDirectory, "home")
+    directoriesToSearch = [os.path.join(homeDirectory, username) for username in os.listdir(homeDirectory)]
+
+    extracted_data_dir = os.path.join(mainFolder, "Bash History")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    files_not_found = []
+    permission_denied_files = [] 
+    for directory in directoriesToSearch:
+        for filePath in fileCrawler(rootDirectory, [directory], bashHistoryFile):
+            try:
+                with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                    with open(os.path.join(extracted_data_dir, os.path.basename(directory) + "_" + bashHistoryFile), "w", encoding='utf-8') as output:
+                        for line in input:
+                            output.write(line)
+                break  
+            except PermissionError:
+                permission_denied_files.append(filePath) 
+                continue
+        else:
+            files_not_found.append(directory)
+
+    appendReport("<h3>Bash History</h3>")
+    if not files_not_found:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    elif len(files_not_found) < len(directoriesToSearch):
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    else:
+        appendReport("<details><summary>Data extraction failed. No files were found. Click to view details.</summary>")
+    
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if files_not_found:
+        appendReport("<h4>Directories Not Found or Partially Present</h4>")
+        appendReport("<p>The following directories were not found or were only partially present:</p>")
+        appendReport("<ul>")
+        for directory in files_not_found:
+            appendReport(f"<li>{directory}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
 
     return
 
