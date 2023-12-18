@@ -4,6 +4,9 @@
 
 import os
 import tempfile
+import fnmatch
+import chardet
+import tkinter.messagebox as messagebox
 from customtkinter import filedialog
 from tkinter import messagebox
 from datetime import datetime
@@ -64,6 +67,11 @@ def fileCrawlerAdvanced(root_directory, directories_to_search, file_to_search):
             if file_to_search in files:
                 return os.path.join(root_directory, relPath, file_to_search)
     return False
+
+def fileExtractAll(directory):
+    for folderName, subfolders, filenames in os.walk(directory):
+        for filename in filenames:
+            yield os.path.join(folderName, filename)
 
 #####################################################################
 # Report
@@ -289,7 +297,6 @@ def getLogs(stat):
 #####################################################################
 
 def getBrowserData(stat):
-
     stat.configure(text="Extracting...")
     
     base_directories = ['.config/google-chrome', '.mozilla/Firefox', '.config/Opera', '.cache']
@@ -306,22 +313,20 @@ def getBrowserData(stat):
             total_directories += 1
             directory = os.path.join(rootDirectory, 'home', username, base_dir)
             if os.path.exists(directory):
-                for root, dirs, files in os.walk(directory):
-                    for file in files:
-                        filePath = os.path.join(root, file)
-                        try:
-                            with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
-                                with open(os.path.join(extracted_data_dir, os.path.basename(filePath)), "w", encoding='utf-8') as output:
-                                    for line in input:
-                                        output.write(line)
-                        except PermissionError:
-                            permission_denied_files.append(filePath)  
-                            continue
-                        except IsADirectoryError:
-                            continue
-                        except FileNotFoundError:
-                            not_found_directories.append(directory)  
-                            continue
+                for filePath in fileExtractAll(directory):
+                    try:
+                        with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                            with open(os.path.join(extracted_data_dir, os.path.basename(filePath)), "w", encoding='utf-8') as output:
+                                for line in input:
+                                    output.write(line)
+                    except PermissionError:
+                        permission_denied_files.append(filePath)  
+                        continue
+                    except IsADirectoryError:
+                        continue
+                    except FileNotFoundError:
+                        not_found_directories.append(directory)  
+                        continue
             else:
                 not_found_directories.append(directory)
 
@@ -359,7 +364,6 @@ def getBrowserData(stat):
 #####################################################################
 
 def getSystemFiles(stat):
-
     stat.configure(text="Extracting...")
 
     directoriesToSearch = ["/etc/*-release", "/etc/hostname", "/etc/hosts", "/var/lib/networkmanager", "/var/lib/dhclient", "/var/lib/dhcp"]
@@ -375,33 +379,31 @@ def getSystemFiles(stat):
         directory = os.path.join(rootDirectory, directory.lstrip('/'))  
         directory_path, directory_name = os.path.split(directory)
         if any(dir_entry.name.lower() == directory_name.lower() for dir_entry in os.scandir(directory_path)):
-            for root, dirs, files in os.walk(directory):
-                for file in files:
-                    filePath = os.path.join(root, file)
-                    try:
-                        with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
-                            if input.read().strip() == "":
-                                empty_files.append(filePath)
-                                continue
-                            with open(os.path.join(extracted_data_dir, os.path.basename(filePath.lower())), "w", encoding='utf-8') as output:
-                                for line in input:
-                                    output.write(line)
-                    except PermissionError:
-                        permission_denied_files.append(filePath)  
-                        continue
-                    except FileNotFoundError:
-                        not_found_files.append(filePath) 
-                        continue
+            for filePath in fileExtractAll(directory):
+                try:
+                    with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                        if input.read().strip() == "":
+                            empty_files.append(filePath)
+                            continue
+                        with open(os.path.join(extracted_data_dir, os.path.basename(filePath.lower())), "w", encoding='utf-8') as output:
+                            for line in input:
+                                output.write(line)
+                except PermissionError:
+                    permission_denied_files.append(filePath)  
+                    continue
+                except FileNotFoundError:
+                    not_found_files.append(filePath) 
+                    continue
         else:
             not_found_files.append(directory)
 
     appendReport("<h3>System Files</h3>")
     if not not_found_files and not empty_files:
-        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir + "</details>")
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
     elif len(not_found_files) < len(directoriesToSearch) or empty_files:
-        appendReport("<details><summary>Data extraction was partially successful. Some files were not found or were empty. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir + "</details>")
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found or were empty. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
     else:
-        appendReport("<details><summary>Data extraction failed. No files were found.</summary></details>")
+        appendReport("<details><summary>Data extraction failed. No files were found.</summary>")
 
     if permission_denied_files:
         appendReport("<h4>Files with Denied Permissions</h4>")
@@ -497,5 +499,382 @@ def getBashHistory(stat):
     return
 
 #####################################################################
-# Bash History
+# Trash
+#####################################################################
+
+def getTrash(stat):
+    stat.configure(text="Extracting...")
+
+    trashDirectory = ".local/share/Trash"
+    homeDirectory = os.path.join(rootDirectory, "home")
+    directoriesToSearch = [os.path.join(homeDirectory, username, trashDirectory) for username in os.listdir(homeDirectory)]
+
+    extracted_data_dir = os.path.join(mainFolder, "Trash")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    directories_not_found = []
+    permission_denied_files = [] 
+    for directory in directoriesToSearch:
+        if os.path.exists(directory):
+            for filePath in fileExtractAll(directory):
+                try:
+                    with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                        with open(os.path.join(extracted_data_dir, os.path.basename(directory) + "_" + os.path.basename(filePath)), "w", encoding='utf-8') as output:
+                            for line in input:
+                                output.write(line)
+                except PermissionError:
+                    permission_denied_files.append(filePath) 
+                    continue
+        else:
+            directories_not_found.append(directory)
+
+    appendReport("<h3>Trash Data</h3>")
+    if not directories_not_found and not permission_denied_files:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    elif len(directories_not_found) < len(directoriesToSearch):
+        appendReport("<details><summary>Data extraction was partially successful. Some directories were not found. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    else:
+        appendReport("<details><summary>Data extraction failed. No directories were found. Click to view details.</summary>")
+    
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if directories_not_found:
+        appendReport("<h4>Directories Not Found or Partially Present</h4>")
+        appendReport("<p>The following directories were not found or were only partially present:</p>")
+        appendReport("<ul>")
+        for directory in directories_not_found:
+            appendReport(f"<li>{directory}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
+
+    return
+
+#####################################################################
+# Recent Files
+#####################################################################
+
+def getRecentFiles(stat):
+
+    stat.configure(text="Extracting...")
+
+    extracted_data_dir = os.path.join(mainFolder, "Recent Files")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    permission_denied_files = []  
+    not_found_files = []  
+
+    for username in os.listdir(os.path.join(rootDirectory, 'home')):
+        filePath = os.path.join(rootDirectory, 'home', username, '.local/share/recently-used.xbel')
+        if os.path.exists(filePath):
+            try:
+                with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                    with open(os.path.join(extracted_data_dir, f"{username}_recently-used.xbel"), "w", encoding='utf-8') as output:
+                        for line in input:
+                            output.write(line)
+            except PermissionError:
+                permission_denied_files.append(filePath)  
+                continue
+        else:
+            not_found_files.append(filePath)
+
+    appendReport("<h3>Recent Files</h3>")
+    if not not_found_files and not permission_denied_files:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    elif len(not_found_files) < len(os.listdir(os.path.join(rootDirectory, 'home'))):
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    else:
+        appendReport("<details><summary>Data extraction failed. No files were found. Click to view details.</summary>")
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if not_found_files:
+        appendReport("<h4>Files Not Found</h4>")
+        appendReport("<p>The following files were not found:</p>")
+        appendReport("<ul>")
+        for file in not_found_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
+
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    return
+
+#####################################################################
+# Startup Items
+#####################################################################
+
+def getStartup(stat):
+    stat.configure(text="Extracting...")
+
+    directoriesToSearch = ["/etc/systemd/system", "/usr/lib/systemd/system"]
+    initDirectories = fnmatch.filter(os.listdir(os.path.join(rootDirectory, 'etc')), 'init*')
+    directoriesToSearch.extend(os.path.join('/etc', dir) for dir in initDirectories)
+
+    extracted_data_dir = os.path.join(mainFolder, "Startup Items")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    permission_denied_files = []  
+    not_found_files = []  
+
+    for directory in directoriesToSearch:
+        directory = os.path.join(rootDirectory, directory.lstrip('/'))  
+        directory_path, directory_name = os.path.split(directory)
+        if any(dir_entry.name.lower() == directory_name.lower() for dir_entry in os.scandir(directory_path)):
+            for filePath in fileExtractAll(directory):
+                try:
+                    with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                        with open(os.path.join(extracted_data_dir, os.path.basename(filePath.lower())), "w", encoding='utf-8') as output:
+                            for line in input:
+                                output.write(line)
+                except PermissionError:
+                    permission_denied_files.append(filePath)  
+                    continue
+                except FileNotFoundError:
+                    not_found_files.append(filePath) 
+                    continue
+        else:
+            not_found_files.append(directory)
+
+    appendReport("<h3>Startup Items</h3>")
+    if not not_found_files and not permission_denied_files:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    elif len(not_found_files) < len(directoriesToSearch):
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    else:
+        appendReport("<details><summary>Data extraction failed. No files were found. Click to view details.</summary>")
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if not_found_files:
+        appendReport("<h4>Files Not Found</h4>")
+        appendReport("<p>The following files were not found:</p>")
+        appendReport("<ul>")
+        for file in not_found_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
+
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    return
+
+#####################################################################
+# Scheduled Tasks
+#####################################################################
+
+def getScheduledTasks(stat):
+
+    stat.configure(text="Extracting...")
+
+    directoriesToSearch = ["/var/spool/crontabs", "/var/spool/atjobs", "/etc/anacron"]
+    cronDirectories = fnmatch.filter(os.listdir(os.path.join(rootDirectory, 'etc')), 'cron*')
+    directoriesToSearch.extend(os.path.join('/etc', dir) for dir in cronDirectories)
+
+    extracted_data_dir = os.path.join(mainFolder, "Scheduled Tasks")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    permission_denied_files = []  
+    not_found_files = []  
+
+    for directory in directoriesToSearch:
+        directory = os.path.join(rootDirectory, directory.lstrip('/'))  
+        directory_path, directory_name = os.path.split(directory)
+        if any(dir_entry.name.lower() == directory_name.lower() for dir_entry in os.scandir(directory_path)):
+            for filePath in fileExtractAll(directory):
+                try:
+                    with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                        with open(os.path.join(extracted_data_dir, os.path.basename(filePath.lower())), "w", encoding='utf-8') as output:
+                            for line in input:
+                                output.write(line)
+                except PermissionError:
+                    permission_denied_files.append(filePath)  
+                    continue
+                except FileNotFoundError:
+                    not_found_files.append(filePath) 
+                    continue
+        else:
+            not_found_files.append(directory)
+
+    appendReport("<h3>Scheduled Tasks</h3>")
+    if not not_found_files and not permission_denied_files:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    elif len(not_found_files) < len(directoriesToSearch):
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary><br>Extracted data is located at " + extracted_data_dir)
+    else:
+        appendReport("<details><summary>Data extraction failed. No files were found. Click to view details.</summary>")
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if not_found_files:
+        appendReport("<h4>Files Not Found</h4>")
+        appendReport("<p>The following files were not found:</p>")
+        appendReport("<ul>")
+        for file in not_found_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
+
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    return
+
+#####################################################################
+# SSH Files
+#####################################################################
+
+def getSSHFiles(stat):
+    stat.configure(text="Extracting...")
+
+    ssh_files = ["authorized_keys", "known_hosts", "config", "id_*"]
+    users = os.listdir(os.path.join(rootDirectory, 'home'))
+
+    extracted_data_dir = os.path.join(mainFolder, "SSH Files")
+    os.makedirs(extracted_data_dir, exist_ok=True)
+
+    files_not_found = []
+    permission_denied_files = [] 
+
+    for user in users:
+        files_to_search = [(file, [os.path.join('home', user, '.ssh')]) for file in ssh_files]
+        for i, (file_to_search, directories) in enumerate(files_to_search):
+            for filePath in fileCrawler(rootDirectory, directories, file_to_search):
+                try:
+                    with open(filePath, "r", encoding='utf-8', errors='ignore') as input:
+                        with open(os.path.join(extracted_data_dir, f"{user}_{file_to_search}"), "w", encoding='utf-8') as output:
+                            for line in input:
+                                output.write(line)
+                except PermissionError:
+                    permission_denied_files.append(filePath) 
+                    continue
+                break  
+            else:
+                files_not_found.append(file_to_search)
+
+    appendReport("<h3>SSH Files</h3>")
+    if not files_not_found:
+        appendReport("<details><summary>Data extraction was successful. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    elif len(files_not_found) < len(files_to_search):
+        appendReport("<details><summary>Data extraction was partially successful. Some files were not found. Click to view details.</summary>")
+        appendReport("<p>Extracted data is located at " + extracted_data_dir + "</p>")
+    else:
+        appendReport("<details><summary>Data extraction failed. No files were found. Click to view details.</summary>")
+    
+    checkExtractionStatus(stat, extracted_data_dir)
+
+    if permission_denied_files:
+        appendReport("<h4>Files with Denied Permissions</h4>")
+        appendReport("<p>The following files could not be accessed due to permission restrictions:</p>")
+        appendReport("<ul>")
+        for file in permission_denied_files:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    if files_not_found:
+        appendReport("<h4>Files Not Found or Partially Present</h4>")
+        appendReport("<p>The following files were not found or were only partially present:</p>")
+        appendReport("<ul>")
+        for file in files_not_found:
+            appendReport(f"<li>{file}</li>")
+        appendReport("</ul>")
+
+    appendReport("</details>")
+    return
+
+#####################################################################
+# Keyword Searching
+#####################################################################
+
+def searchKeyword(keyword):
+    
+    matching_files = []
+    matching_dirs = []
+    skipped_files = []
+
+    for root, dirs, files in os.walk(mainFolder):
+        for dir in dirs:
+            if keyword in dir:
+                matching_dirs.append(os.path.join(root, dir))
+        for file in files:
+            if keyword in file:
+                matching_files.append(os.path.join(root, file))
+            else:
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'rb') as f:
+                        rawdata = f.read()
+                        result = chardet.detect(rawdata)
+                        encoding = result['encoding']
+                        if encoding is None:
+                            encoding = 'utf-8' 
+                        try:
+                            text = rawdata.decode(encoding)
+                            if keyword in text:
+                                matching_files.append(file_path)
+                        except UnicodeDecodeError:
+                            skipped_files.append(file_path)
+                except Exception as e:
+                    print(f"Error reading file {file}: {e}")
+
+    appendReport(f"<h3>Search for keyword '{keyword}'</h3>")
+    if matching_files or matching_dirs:
+        messagebox.showinfo("Search Results", f"Keyword '{keyword}' found.\nFirst 3 matches:\n\n" +
+                            '\n'.join(matching_files[:3] + matching_dirs[:3]) +
+                            "\n\nCheck report for more details.")
+        appendReport("<details><summary>Click to view details.</summary>")
+        appendReport("<p>Found in the following files:</p>")
+        appendReport("<ul>")
+        for file_path in matching_files:
+            appendReport(f"<li>{file_path}</li>")
+        appendReport("</ul>")
+        if skipped_files:
+            appendReport("<p>Some files could not be decoded:</p>")
+            appendReport("<ul>")
+            for file_path in skipped_files:
+                appendReport(f"<li>{file_path}</li>")
+            appendReport("</ul>")
+        appendReport("</details>")
+    else:
+        messagebox.showinfo("Search Results", f"No matches found for keyword '{keyword}'. Check report for details.")
+        appendReport("<details><summary>No matches found for keyword '{keyword}'. Click to view details.</summary>")
+        appendReport("<p>No files or directories found containing the keyword.</p>")
+        appendReport("</details>")
+
+    return matching_files, matching_dirs
+
+#####################################################################
+# END
 #####################################################################
